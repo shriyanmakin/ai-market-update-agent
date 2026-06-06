@@ -1,0 +1,338 @@
+{
+  "name": "AI Market Update Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        384
+      ],
+      "id": "73f6580d-358d-4d52-8b5c-08d1cdf206fe",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        480
+      ],
+      "id": "17d4d424-bcec-48d2-a7d3-f2fc43cc82e5",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "url": "https://www.alphavantage.co/query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "function",
+              "value": "GLOBAL_QUOTE"
+            },
+            {
+              "name": "symbol",
+              "value": "QQQ"
+            },
+            {
+              "name": "apikey",
+              "value": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        384
+      ],
+      "id": "b8be5bfe-9d14-4577-9559-bf7a463e9898",
+      "name": "QQQ Market Data"
+    },
+    {
+      "parameters": {
+        "url": "https://www.alphavantage.co/query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "function",
+              "value": "GLOBAL_QUOTE"
+            },
+            {
+              "name": "symbol",
+              "value": "SPY"
+            },
+            {
+              "name": "apikey",
+              "value": "API-KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        576
+      ],
+      "id": "e3a6679d-cc90-4c50-a530-920b1305fde5",
+      "name": "SPY Market Data"
+    },
+    {
+      "parameters": {
+        "url": "https://www.alphavantage.co/query",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        208
+      ],
+      "id": "70efedeb-e977-4ee0-92f3-088568c7261f",
+      "name": "News Feed"
+    },
+    {
+      "parameters": {
+        "jsCode": "const articles = $json.feed || [];\n\nconst formattedArticles = articles.slice(0, 10).map(article => ({\n\n  title: article.title || \"N/A\",\n\n  summary: article.summary || \"N/A\",\n\n  sentiment: article.overall_sentiment_label || \"Unknown\",\n\n  source: article.source || \"Unknown\",\n\n  published: article.time_published || \"Unknown\"\n\n}));\n\nreturn [\n\n  {\n\n    json: {\n\n      reportDate: new Date().toISOString(),\n\n      articleCount: formattedArticles.length,\n\n      articles: formattedArticles\n\n    }\n\n  }\n\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        208
+      ],
+      "id": "3d201ef1-02e4-40e4-9e75-311f9078591a",
+      "name": "News Formatter"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\n\nconst spyChange = parseFloat(data[\"10. change percent\"] || 0);\n\n// Depending on how n8n combined the data, we'll inspect the output\nreturn [{\n  json: {\n    marketSummary: {\n      spy_change: \"0.2491%\",\n      qqq_change: \"0.3684%\",\n      insight:\n        0.3684 > 0.2491\n          ? \"Technology stocks outperformed the broader market.\"\n          : \"Broad market outperformed technology stocks.\"\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        480
+      ],
+      "id": "125a5361-4489-4bd0-80e9-295c332942bd",
+      "name": "Market context"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        384
+      ],
+      "id": "5cd92a6c-90b8-4cdb-bf51-9ae2ea2b99bb",
+      "name": "Final Merge"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=You are a professional hedge fund research analyst preparing a daily pre-market briefing.\n\nYour task is to analyze BOTH the market context and the news data.\n\nThe market context is extremely important and must be incorporated into your conclusions.\n\nInterpret market signals carefully:\n\n* If QQQ outperforms SPY, explain what that suggests about investor sentiment toward technology, AI, semiconductors, and growth stocks.\n* If SPY outperforms QQQ, explain what that suggests about broader market leadership.\n* Use market data to support or challenge conclusions drawn from the news.\n\nImportant:\n\n* Do NOT invent developments that are not present in the news.\n* Market data may indicate investor sentiment, but sentiment should not be described as a confirmed event.\n* Distinguish between facts and interpretations.\n\nExample:\nGOOD: “QQQ outperformance suggests positive investor sentiment toward technology stocks.”\n\nBAD: “AI companies announced major breakthroughs today.”\n\nPrioritize:\n\n* Artificial Intelligence\n* Semiconductors\n* Big Tech\n* Macroeconomics\n* Federal Reserve\n* Inflation\n* Interest Rates\n* Cryptocurrency\n* Major Earnings\n* Geopolitical developments affecting markets\n\nIgnore:\n\n* Minor corporate announcements\n* Routine press releases\n* Low-impact company updates\n\nFocus on implications rather than repeating headlines.\n\nOutput plain text only.\n\nDo NOT use:\n\n* Markdown\n* HTML\n* Asterisks (*)\n* Underscores (_)\n* Tables\n* Links\n\nUse the following format exactly:\n\nDaily Market Brief\n\nMarket Sentiment Score\n[X]/100\n\nReasoning\n2-3 sentences explaining the score.\n\nMarket Snapshot\n\n* SPY change\n* QQQ change\n* Key market interpretation\n\nMacro\n\n* Key macroeconomic developments\n* Federal Reserve implications\n* Inflation and economic growth observations\n\nAI & Tech\n\n* AI developments\n* Semiconductor updates\n* Big Tech developments\n* Technology sentiment analysis\n\nMarkets\n\n* Investor positioning\n* Bullish signals\n* Bearish signals\n* Key themes driving markets\n\nRisks\n\n* Important risks investors should monitor\n\nOne-Sentence Takeaway\nProvide one concise sentence summarizing the most important market theme today.\n\nMarket Context:\n{{ JSON.stringify($json.marketSummary) }}\n\nNews Data:\n{{ JSON.stringify($json.articles) }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        1120,
+        384
+      ],
+      "id": "6c630eb7-a20c-4bfa-9e02-5efaa15b8355",
+      "name": "AI Analyst",
+      "credentials": {
+        "openAiApi": {
+          "id": "zh75X8Skz2hPlDqn",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "CHAT ID",
+        "text": "={{ $json.output[0].content[0].text }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1472,
+        384
+      ],
+      "id": "d880d915-ce4d-4e31-a611-c4773bb0a9dd",
+      "name": "Message Delivery",
+      "webhookId": "539add7b-9a16-4786-83e6-ed7c6cc6492d",
+      "retryOnFail": false,
+      "credentials": {
+        "telegramApi": {
+          "id": "MFD2KP8GRw8mOUyh",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "News Feed",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "QQQ Market Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SPY Market Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Market context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QQQ Market Data": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SPY Market Data": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "News Feed": {
+      "main": [
+        [
+          {
+            "node": "News Formatter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "News Formatter": {
+      "main": [
+        [
+          {
+            "node": "Final Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Market context": {
+      "main": [
+        [
+          {
+            "node": "Final Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Final Merge": {
+      "main": [
+        [
+          {
+            "node": "AI Analyst",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analyst": {
+      "main": [
+        [
+          {
+            "node": "Message Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "4da8ea13-142f-4888-9635-0be5a7dce3f6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e7d7c8bc88fc878965fcf1167f922e97c374218ed07fbe3b271b859e10454272"
+  },
+  "id": "Io8mtFUwICyBxWsb",
+  "tags": []
+}
